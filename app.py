@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import pickle
@@ -6,12 +5,19 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 
 # Load the pre-trained model
-with open('best_model.pkl', 'rb') as model_file:
-    model = pickle.load(model_file)
+@st.cache_resource
+def load_model():
+    with open('best_model.pkl', 'rb') as model_file:
+        return pickle.load(model_file)
 
 # Load the label encoder
-with open('label_encoder.pkl', 'rb') as label_encoder_file:
-    label_encoder = pickle.load(label_encoder_file)
+@st.cache_resource
+def load_label_encoder():
+    with open('label_encoder.pkl', 'rb') as label_encoder_file:
+        return pickle.load(label_encoder_file)
+
+model = load_model()
+label_encoder = load_label_encoder()
 
 # Title of the app
 st.title("Coffee Type Prediction")
@@ -46,7 +52,7 @@ if st.button('Predict Coffee Type'):
     })
 
     # One-hot encode the input data
-    input_encoded = pd.get_dummies(input_data, columns=[f'Token_{i}' for i in range(10)], drop_first=True)
+    input_encoded = pd.get_dummies(input_data, columns=[f'Token_{i}' for i in range(10)])
 
     # Get the feature names from the model
     feature_names = model.feature_names_in_ if hasattr(model, 'feature_names_in_') else input_encoded.columns
@@ -59,17 +65,21 @@ if st.button('Predict Coffee Type'):
     # Reorder columns to match the training data
     input_encoded = input_encoded.reindex(columns=feature_names, fill_value=0)
 
-    # Create a new StandardScaler and fit it to the input data
-    scaler = StandardScaler()
-    input_scaled = scaler.fit_transform(input_encoded)
+    # Check if input_encoded is not empty before scaling
+    if not input_encoded.empty:
+        # Create a new StandardScaler and fit it to the input data
+        scaler = StandardScaler()
+        input_scaled = scaler.fit_transform(input_encoded)
 
-    # Make the prediction
-    prediction = model.predict(input_scaled)[0]
+        # Make the prediction
+        prediction = model.predict(input_scaled)[0]
 
-    # Reverse the label encoding
-    coffee_type = label_encoder.inverse_transform([prediction])[0]
+        # Reverse the label encoding
+        coffee_type = label_encoder.inverse_transform([prediction])[0]
 
-    # Display the prediction
-    st.subheader(f"Recommended Coffee: {coffee_type}")
+        # Display the prediction
+        st.subheader(f"Recommended Coffee: {coffee_type}")
+    else:
+        st.error("Unable to make a prediction. Please ensure all inputs are selected.")
 else:
     st.write("Please select your preferences and click 'Predict Coffee Type' to get a recommendation.")
