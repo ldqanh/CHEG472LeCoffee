@@ -16,27 +16,8 @@ def load_label_encoder():
     with open('label_encoder.pkl', 'rb') as label_encoder_file:
         return pickle.load(label_encoder_file)
 
-# Load the training data to get scaler and feature names
-@st.cache_resource
-def load_training_data():
-    df = pd.read_excel('Coffee order dataset.xlsx')  # Ensure this file is accessible
-    return df
-
 model = load_model()
 label_encoder = load_label_encoder()
-df = load_training_data()
-
-# Preprocess the training data
-
-# One-hot encode the feature columns
-df_encoded = pd.get_dummies(df, columns=[f'Token_{i}' for i in range(10)], drop_first=True)
-
-# Get the feature names (excluding the target 'Label')
-feature_names = df_encoded.drop('Label', axis=1).columns
-
-# Fit the scaler on the training data
-scaler = StandardScaler()
-scaler.fit(df_encoded[feature_names])
 
 # Title of the app
 st.title("Coffee Type Prediction")
@@ -73,25 +54,32 @@ if st.button('Predict Coffee Type'):
     # One-hot encode the input data
     input_encoded = pd.get_dummies(input_data, columns=[f'Token_{i}' for i in range(10)])
 
-    # Ensure all feature columns are present in the input
+    # Get the feature names from the model
+    feature_names = model.feature_names_in_ if hasattr(model, 'feature_names_in_') else input_encoded.columns
+
+    # Ensure all columns from training are present in the input
     for col in feature_names:
         if col not in input_encoded.columns:
             input_encoded[col] = 0
 
     # Reorder columns to match the training data
-    input_encoded = input_encoded[feature_names]
+    input_encoded = input_encoded.reindex(columns=feature_names, fill_value=0)
 
-    # Transform the input data using the scaler fitted on training data
-    input_scaled = scaler.transform(input_encoded)
+    # Check if input_encoded is not empty before scaling
+    if not input_encoded.empty:
+        # Create a new StandardScaler and fit it to the input data
+        scaler = StandardScaler()
+        input_scaled = scaler.fit_transform(input_encoded)
 
-    # Make the prediction
-    prediction = model.predict(input_scaled)[0]
+        # Make the prediction
+        prediction = model.predict(input_scaled)[0]
 
-    # Reverse the label encoding
-    coffee_type = label_encoder.inverse_transform([prediction])[0]
+        # Reverse the label encoding
+        coffee_type = label_encoder.inverse_transform([prediction])[0]
 
-    # Display the prediction
-    st.subheader(f"Recommended Coffee: {coffee_type}")
-
+        # Display the prediction
+        st.subheader(f"Recommended Coffee: {coffee_type}")
+    else:
+        st.error("Unable to make a prediction. Please ensure all inputs are selected.")
 else:
     st.write("Please select your preferences and click 'Predict Coffee Type' to get a recommendation.")
